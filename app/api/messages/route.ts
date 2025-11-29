@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const phoneNumber = searchParams.get('phoneNumber')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    let query = supabaseAdmin
+    let query = getSupabaseAdmin()
       .from('messages')
       .select('*')
       .order('created_at', { ascending: false })

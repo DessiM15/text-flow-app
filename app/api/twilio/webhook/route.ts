@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const messageSid = formData.get('MessageSid') as string
 
     // Store incoming message in database
-    const { error } = await supabaseAdmin
+    const { error } = await getSupabaseAdmin()
       .from('messages')
       .insert({
         from_number: from,

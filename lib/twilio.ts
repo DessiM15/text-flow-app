@@ -1,14 +1,32 @@
 import twilio from 'twilio'
+import type { Twilio } from 'twilio'
 
-const accountSid = process.env.TWILIO_ACCOUNT_SID!
-const authToken = process.env.TWILIO_AUTH_TOKEN!
-const phoneNumber = process.env.TWILIO_PHONE_NUMBER!
+let twilioClientInstance: Twilio | null = null
 
-export const twilioClient = twilio(accountSid, authToken)
+function getTwilioClient(): Twilio {
+  if (!twilioClientInstance) {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID
+    const authToken = process.env.TWILIO_AUTH_TOKEN
+
+    if (!accountSid || !authToken) {
+      throw new Error('Missing Twilio environment variables')
+    }
+
+    twilioClientInstance = twilio(accountSid, authToken)
+  }
+
+  return twilioClientInstance
+}
 
 export async function sendSMS(to: string, message: string) {
   try {
-    const result = await twilioClient.messages.create({
+    const phoneNumber = process.env.TWILIO_PHONE_NUMBER
+    if (!phoneNumber) {
+      throw new Error('Missing TWILIO_PHONE_NUMBER environment variable')
+    }
+
+    const client = getTwilioClient()
+    const result = await client.messages.create({
       body: message,
       from: phoneNumber,
       to: to,

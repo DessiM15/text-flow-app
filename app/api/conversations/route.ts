@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
     // Get all unique phone numbers from messages
-    const { data: messages, error } = await supabaseAdmin
+    const { data: messages, error } = await getSupabaseAdmin()
       .from('messages')
       .select('from_number, to_number, body, created_at')
       .order('created_at', { ascending: false })
