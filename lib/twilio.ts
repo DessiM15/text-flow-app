@@ -25,16 +25,38 @@ export async function sendSMS(to: string, message: string) {
       throw new Error('Missing TWILIO_PHONE_NUMBER environment variable')
     }
 
+    // Ensure phone numbers are properly formatted (no spaces, just + and digits)
+    const cleanTo = to.replace(/\s+/g, '')
+    const cleanFrom = phoneNumber.replace(/\s+/g, '')
+
+    console.log('Twilio sendSMS called:', { to: cleanTo, from: cleanFrom, messageLength: message.length })
+    
     const client = getTwilioClient()
     const result = await client.messages.create({
       body: message,
-      from: phoneNumber,
-      to: to,
+      from: cleanFrom,
+      to: cleanTo,
+      statusCallback: process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/api/twilio/status-callback` : undefined,
     })
-    return { success: true, sid: result.sid, error: null }
+    
+    console.log('Twilio message created:', result.sid, 'Status:', result.status)
+    return { 
+      success: true, 
+      sid: result.sid, 
+      status: result.status,
+      error: null 
+    }
   } catch (error: any) {
     console.error('Error sending SMS:', error)
-    return { success: false, sid: null, error: error.message }
+    // Provide more detailed error information
+    const errorMessage = error.message || 'Unknown error'
+    const errorCode = error.code || 'NO_CODE'
+    return { 
+      success: false, 
+      sid: null, 
+      error: `${errorMessage} (Code: ${errorCode})`,
+      details: error
+    }
   }
 }
 

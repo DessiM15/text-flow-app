@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
         direction: 'inbound',
         status: 'received',
         twilio_sid: messageSid,
+        conversation_id: null, // Explicitly set to null if column exists
       })
 
     if (error) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import ConversationList from '@/components/ConversationList'
 import MessageList from '@/components/MessageList'
 import MessageInput from '@/components/MessageInput'
+import ThemeToggle from '@/components/ThemeToggle'
 import { Message, Conversation } from '@/lib/supabase/types'
 
 export default function Home() {
@@ -61,7 +62,8 @@ export default function Home() {
       const response = await fetch(`/api/messages?phoneNumber=${encodeURIComponent(phoneNumber)}`)
       const data = await response.json()
       if (data.messages) {
-        setMessages(data.messages.reverse()) // Reverse to show oldest first
+        // Messages are already ordered ascending (oldest first) from API
+        setMessages(data.messages)
       }
     } catch (error) {
       console.error('Error fetching messages:', error)
@@ -73,41 +75,73 @@ export default function Home() {
 
     setSending(true)
     try {
+      // Ensure phone number is formatted before sending
+      const formattedPhone = formatPhoneNumberForStorage(selectedPhoneNumber)
+      
       const response = await fetch('/api/messages/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: selectedPhoneNumber,
+          to: formattedPhone,
           message: message,
         }),
       })
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Send message failed:', errorData)
+        alert('Failed to send message: ' + (errorData.error || 'Unknown error'))
+        return
+      }
+
       const data = await response.json()
+      console.log('Send message response:', data)
 
       if (data.success) {
-        // Refresh messages and conversations
-        await fetchMessages(selectedPhoneNumber)
-        await fetchConversations()
+        // Add the sent message immediately to the UI for better UX
+        if (data.message) {
+          setMessages((prev) => [...prev, data.message])
+        }
+        // Refresh messages and conversations after a short delay to ensure DB is updated
+        // Use formatted phone number to ensure we fetch the right messages
+        const formattedPhone = formatPhoneNumberForStorage(selectedPhoneNumber)
+        setTimeout(async () => {
+          await fetchMessages(formattedPhone)
+          await fetchConversations()
+        }, 500)
       } else {
+        console.error('Send message failed:', data)
         alert('Failed to send message: ' + (data.error || 'Unknown error'))
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error)
-      alert('Failed to send message')
+      alert('Failed to send message: ' + (error.message || 'Network error'))
     } finally {
       setSending(false)
     }
   }
 
+  const formatPhoneNumberForStorage = (phone: string): string => {
+    // Ensure phone number is in E.164 format (starts with +)
+    let formatted = phone.trim()
+    if (!formatted.startsWith('+')) {
+      // If it doesn't start with +, assume it's a US number and add +1
+      formatted = formatted.replace(/^1/, '') // Remove leading 1 if present
+      formatted = `+1${formatted.replace(/\D/g, '')}` // Remove non-digits and add +1
+    }
+    return formatted
+  }
+
   const handleStartNewConversation = () => {
     const phone = newPhoneNumber.trim()
     if (phone) {
-      setSelectedPhoneNumber(phone)
+      const formattedPhone = formatPhoneNumberForStorage(phone)
+      setSelectedPhoneNumber(formattedPhone)
       setNewPhoneNumber('')
       setShowNewConversation(false)
-      fetchMessages(phone)
+      fetchMessages(formattedPhone)
     }
   }
 
@@ -117,7 +151,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
       {/* Conversations Sidebar */}
       <div className="hidden md:block">
         <ConversationList
@@ -128,27 +162,30 @@ export default function Home() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-white">
+      <div className="flex-1 flex flex-col bg-white dark:bg-gray-800">
         {selectedPhoneNumber ? (
           <>
             {/* Chat Header */}
-            <div className="border-b border-gray-200 p-4 bg-white">
+            <div className="border-b border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-900">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     {formatPhoneNumber(selectedPhoneNumber)}
                   </h2>
-                  <p className="text-sm text-gray-500">{selectedPhoneNumber}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{selectedPhoneNumber}</p>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedPhoneNumber(null)
-                    setMessages([])
-                  }}
-                  className="md:hidden px-4 py-2 text-gray-600 hover:text-gray-900"
-                >
-                  ← Back
-                </button>
+                <div className="flex items-center gap-2">
+                  <ThemeToggle />
+                  <button
+                    onClick={() => {
+                      setSelectedPhoneNumber(null)
+                      setMessages([])
+                    }}
+                    className="md:hidden px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                  >
+                    ← Back
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -165,10 +202,13 @@ export default function Home() {
         ) : (
           <div className="flex-1 flex items-center justify-center p-8">
             <div className="text-center max-w-md">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              <div className="flex justify-end mb-4">
+                <ThemeToggle />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
                 Welcome to TextFlow
               </h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
                 {conversations.length === 0
                   ? 'Get started by sending your first message!'
                   : 'Select a conversation from the sidebar or start a new one.'}
@@ -180,14 +220,17 @@ export default function Home() {
                     type="tel"
                     value={newPhoneNumber}
                     onChange={(e) => setNewPhoneNumber(e.target.value)}
-                    placeholder="Enter phone number (e.g., +1234567890)"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter phone number (e.g., +18327905001 or 8327905001)"
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
                         handleStartNewConversation()
                       }
                     }}
                   />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    US numbers: Enter with or without +1 (e.g., +18327905001 or 8327905001)
+                  </p>
                   <div className="flex space-x-2">
                     <button
                       onClick={handleStartNewConversation}
@@ -200,7 +243,7 @@ export default function Home() {
                         setShowNewConversation(false)
                         setNewPhoneNumber('')
                       }}
-                      className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                     >
                       Cancel
                     </button>
@@ -218,16 +261,16 @@ export default function Home() {
               {/* Mobile: Show conversations list */}
               {conversations.length > 0 && (
                 <div className="mt-8 md:hidden">
-                  <h3 className="text-lg font-semibold mb-4">Recent Conversations</h3>
+                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-100">Recent Conversations</h3>
                   <div className="space-y-2">
                     {conversations.slice(0, 5).map((conv) => (
                       <button
                         key={conv.phone_number}
                         onClick={() => setSelectedPhoneNumber(conv.phone_number)}
-                        className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-gray-50"
+                        className="w-full text-left p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                       >
-                        <div className="font-medium">{conv.phone_number}</div>
-                        <div className="text-sm text-gray-500 truncate">
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{conv.phone_number}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 truncate">
                           {conv.last_message}
                         </div>
                       </button>
